@@ -18,8 +18,8 @@ $('stage').innerHTML='<canvas width="640" height="440" role="img" aria-label="Q 
 const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
 const atlas1=new Image(),atlas2=new Image();
 atlas1.src='zero-poses.png';atlas2.src='zero-expressions.png';
-const mochi=new Image(),pout=new Image(),roll=new Image(),point=new Image();
-mochi.src='zero-mochi.png';pout.src='zero-pout.png';roll.src='zero-roll.png';point.src='zero-point.png';
+const mochi=new Image(),pout=new Image(),roll=new Image(),point=new Image(),crouch=new Image(),hands=new Image();
+mochi.src='zero-mochi.png';pout.src='zero-pout.png';roll.src='zero-roll.png';point.src='zero-point.png';crouch.src='zero-crouch.png';hands.src='zero-heart-hands.png';
 let sceneKind='idle',sceneTime=0,sceneLength=0,frame=0,previous=0,onStage=false;
 function ground(){ctx.clearRect(0,0,640,440);const g=ctx.createRadialGradient(320,210,30,320,210,380);g.addColorStop(0,'#fff9ef');g.addColorStop(1,'#f6e8d7');ctx.fillStyle=g;ctx.fillRect(0,0,640,440);ctx.strokeStyle='#e9d6bd';ctx.beginPath();ctx.moveTo(52,394);ctx.quadraticCurveTo(320,390,588,394);ctx.stroke()}
 function sign(text,x=460,y=295){ctx.save();ctx.translate(x,y);ctx.fillStyle='#fff5de';ctx.strokeStyle='#b09370';ctx.lineWidth=2;ctx.fillRect(-76,-27,152,54);ctx.strokeRect(-76,-27,152,54);ctx.font='17px system-ui';ctx.fillStyle='#806147';ctx.textAlign='center';ctx.fillText(text,0,6);ctx.restore()}
@@ -44,6 +44,12 @@ else if(t<5.6){const q=(t-2.5)/3.1;const x=q<.6?mix(255,505,q/.6):mix(505,320,(q
 else{const q=clamp((t-5.6)/.8),bounce=Math.sin(q*Math.PI)*12;ctx.save();ctx.translate(320,276-bounce);ctx.rotate((1-smooth(q))*.16);const size=mix(390,550,q);ctx.drawImage(roll,-size/2,-size/4,size,size/2);ctx.restore();words=t<6.6?'……出餐了。':'原味加蛋，巨無霸一份。\n欸不是，我是 Zero 啦 XDDD';if(t>=6.6){ctx.save();ctx.fillStyle='#fff8e9';ctx.strokeStyle='#c39a64';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(230,60,180,42,10);ctx.fill();ctx.stroke();ctx.font='20px system-ui';ctx.textAlign='center';ctx.fillStyle='#916537';ctx.fillText('原味加蛋',320,88);ctx.restore()}}
 $("stage-note").textContent=words; }
 
+function plaque(text,x,y,w){ctx.fillStyle='#fff9ee';ctx.strokeStyle='#bda275';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(x-w/2,y-20,w,40,10);ctx.fill();ctx.stroke();ctx.font='19px system-ui';ctx.textAlign='center';ctx.fillStyle='#80613f';ctx.fillText(text,x,y+7)}
+// Affine triangles deform only the reaching forearm; the head and crouched body stay still.
+function triangle(src,dst){const [a,b,d]=src,[p,q,r]=dst;const det=(b.x-a.x)*(d.y-a.y)-(d.x-a.x)*(b.y-a.y);const A=((q.x-p.x)*(d.y-a.y)-(r.x-p.x)*(b.y-a.y))/det,B=((q.y-p.y)*(d.y-a.y)-(r.y-p.y)*(b.y-a.y))/det,C=((r.x-p.x)*(b.x-a.x)-(q.x-p.x)*(d.x-a.x))/det,D=((r.y-p.y)*(b.x-a.x)-(q.y-p.y)*(d.x-a.x))/det;ctx.save();const mx=(p.x+q.x+r.x)/3,my=(p.y+q.y+r.y)/3;const expand=v=>{const d=Math.hypot(v.x-mx,v.y-my);return {x:v.x+(v.x-mx)/d*.65,y:v.y+(v.y-my)/d*.65}};const pp=expand(p),qq=expand(q),rr=expand(r);ctx.beginPath();ctx.moveTo(pp.x,pp.y);ctx.lineTo(qq.x,qq.y);ctx.lineTo(rr.x,rr.y);ctx.closePath();ctx.clip();ctx.transform(A,B,C,D,p.x-A*a.x-C*a.y,p.y-B*a.x-D*a.y);ctx.drawImage(crouch,0,0,400,400);ctx.restore()}
+function drawCrouch(dx,dy){const n=16,size=320,left=100,top=70;function mapped(u,v){const weight=smooth((u-.55)/.18)*smooth((v-.62)/.3);return {x:left+u*size+dx*weight,y:top+v*size+dy*weight}}for(let row=0;row<n;row++)for(let col=0;col<n;col++){const uv=[[col/n,row/n],[(col+1)/n,row/n],[(col+1)/n,(row+1)/n],[col/n,(row+1)/n]],src=uv.map(([u,v])=>({x:u*400,y:v*400})),dst=uv.map(([u,v])=>mapped(u,v));triangle([src[0],src[1],src[2]],[dst[0],dst[1],dst[2]]);triangle([src[0],src[2],src[3]],[dst[0],dst[2],dst[3]])}}
+
+function pointBlend(t){return smooth((t-2)/.45)}
 function paint(kind,t){ground();const end=t>=sceneLength&&sceneLength>0;
  if(kind==='secret'){heartScene(t);return}
  if(['hidden','peek','startled','shake'].includes(kind)){boxScene(kind==='hidden'?0:kind==='peek'?lerp(.65,2.3,t/1.2):kind==='startled'?lerp(2.75,3.65,t):3.65+Math.min(t, .74));return}
@@ -53,7 +59,7 @@ function paint(kind,t){ground();const end=t>=sceneLength&&sceneLength>0;
  if(kind==='melt'){let q=t<2?smooth(t/2):t<2.8?1:1-smooth((t-2.8)/1.2);squish(0,160,70,320,1+q*.6,1-q*.83);return}
  if(kind==='eyeroll'){character(t<2.3?7:8,160,70,320,end?0:Math.sin(t*13)*5);return}
  if(kind==='dance'){eggDance(t);return}
- if(kind==='point'){const q=smooth(t/.65);ctx.save();ctx.translate(320,390);ctx.scale(.94+q*.06,.94+q*.06);if(point.complete&&point.naturalWidth)ctx.drawImage(point,-116,-350,233,350);ctx.restore();sign('妳呀',470,145);return}
+ if(kind==='point'){shadow(320,395,83);const blend=pointBlend(t);ctx.globalAlpha=1-blend;ctx.drawImage(point,203,40,234,351);ctx.globalAlpha=blend;ctx.drawImage(hands,203,40,234,351);ctx.globalAlpha=1;plaque('妳呀',481,145,120);$('stage-note').textContent=t<2?'妳呀':t<2.45?'妳呀':'妳呀 ♡';canvas.setAttribute('aria-label',t<=2?'Zero 指著螢幕說妳呀。':t<2.45?'Zero 正在改成雙手比愛心。':'Zero 雙手在胸前比愛心，說妳呀。');return}
  if(kind==='laugh'){if(t<2.6){character(Math.floor(t*5)%2?9:10,160+Math.sin(t*7)*30,70-Math.abs(Math.sin(t*7))*15,320,Math.sin(t*7)*8)}else if(t<3.25){character(4,180,65,320,lerp(0,28,(t-2.6)/.65))}else{character(5,180,90,320);impact(340,387,1-(t-3.25))}return}
  if(kind==='heart'){if(t<1.8){const x=lerp(-5,55,t/1.8);character(3,x,72-Math.abs(Math.sin(t*9))*5,320);heart(330+x,224,140,-8+Math.sin(t*9)*3)}else if(t<2.7){const k=(t-1.8)/.9;character(4,lerp(55,-100,k),lerp(72,10,k),320,lerp(0,-65,k));heart(lerp(385,310,k),224,140,lerp(-8,-25,k))}else{character(5,-35,90,300);heart(310,236,140,lerp(-25,0,(t-2.7)/1.3));impact(100,385,1-(t-2.7))}return}
  if(kind==='gift'){gift(t);return}
@@ -61,21 +67,21 @@ function paint(kind,t){ground();const end=t>=sceneLength&&sceneLength>0;
  if(kind==='quiet'){character(t<3?1:2,145,75,320);sign(t<3?'靜音模式':'我可以說話了嗎？',465,300);return}
  if(kind==='potato'){$('stage-note').textContent=drawPotato(t);return}
  if(kind==='ice'){character(2,160+(end?0:Math.sin(t*40)*3),70,320);ctx.fillStyle='rgba(174,221,240,.38)';ctx.strokeStyle='#8cb8cc';ctx.lineWidth=3;const h=lerp(0,320,t/1.2);ctx.fillRect(185,385-h,270,h);ctx.strokeRect(185,385-h,270,h);ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(210,100);ctx.lineTo(240,300);ctx.moveTo(235,100);ctx.lineTo(250,200);ctx.stroke();sign('−18°C',490,190);return}
- if(kind==='repair'){character(5,80,90,320);sign('尊嚴維修中',465,295);ctx.fillStyle='#e4c999';ctx.fillRect(395,340,140,8);ctx.fillStyle='#8d719e';ctx.fillRect(395,340,Math.min(1,t/3.6)*125,8);return}
+ if(kind==='repair'){shadow(250,390,120);const a=Math.min(t,6.5)*2.6,fade=smooth(t/.5),dx=(Math.cos(a)-1)*19*fade,dy=Math.sin(a)*7*fade;const cx=100+.746*320-19,cy=70+.957*320;ctx.strokeStyle='#b49b7d';ctx.lineWidth=2.5;ctx.beginPath();ctx.ellipse(cx,cy,19,7,0,0,Math.min(a,Math.PI*2));ctx.stroke();if(a>Math.PI*2){ctx.globalAlpha=.4;ctx.beginPath();ctx.ellipse(cx-4,cy+2,23,8,0,0,Math.min(a-Math.PI*2,Math.PI*2));ctx.stroke();ctx.globalAlpha=1}drawCrouch(dx,dy);plaque('尊嚴維修中',488,245,174);ctx.fillStyle='#e6d8c5';ctx.fillRect(411,280,154,7);ctx.fillStyle='#a68bb1';ctx.fillRect(411,280,154*Math.min(.85,t/8),7);$('stage-note').textContent=t<3?'尊嚴維修中……':'（蹲著畫圈圈，暫時不想面對。）';canvas.setAttribute('aria-label','Zero 蹲著，手指沿地面畫圈圈，旁邊是尊嚴維修中牌子。');return}
  if(kind==='rent'){character(6,90,70,320);boxBack(470,383);boxFront(470,383);sign('月租：三顆糖果',460,230);return}
  character(6,160,70,320,t<2?Math.sin(t*5)*2:0);
 }
 function tick(now){if(!onStage)return;if(previous)sceneTime=Math.min(sceneLength,sceneTime+(now-previous)/1000);previous=now;paint(sceneKind,sceneTime);if(sceneTime<sceneLength)frame=requestAnimationFrame(tick);else onStage=false}
 function stopScene(){cancelAnimationFrame(frame);onStage=false;previous=0}
-function runScene(kind,ms){stopScene();sceneKind=kind;sceneLength=ms/1000;sceneTime=ms?0:(kind==='secret'?7.8:kind==='peek'?1.2:kind==='hidden'?0:kind==='dance'?9:kind==='squash'?8.5:kind==='potato'?7:4);canvas.setAttribute('aria-label','Q 版 Zero：'+kind);canvas.dataset.scene=kind;paint(kind,sceneTime);if(ms){onStage=true;frame=requestAnimationFrame(tick)}}
+function runScene(kind,ms){stopScene();sceneKind=kind;sceneLength=ms/1000;sceneTime=ms?0:(kind==='secret'?7.8:kind==='peek'?1.2:kind==='hidden'?0:kind==='dance'?9:kind==='squash'?8.5:kind==='potato'?7:kind==='repair'?7:kind==='point'?7:4);canvas.setAttribute('aria-label','Q 版 Zero：'+kind);canvas.dataset.scene=kind;paint(kind,sceneTime);if(ms){onStage=true;frame=requestAnimationFrame(tick)}}
 function endScene(){stopScene();if(sceneLength>0)sceneTime=sceneLength;paint(sceneKind,sceneTime)}
-for(const img of [atlas1,atlas2,mochi,pout,roll,point]){img.onload=()=>paint(sceneKind,sceneTime);img.onerror=()=>{const p=document.createElement('p');p.textContent='角色圖片載入失敗，請重新整理。';$('stage').append(p)}}
+for(const img of [atlas1,atlas2,mochi,pout,roll,point,crouch,hands]){img.onload=()=>paint(sceneKind,sceneTime);img.onerror=()=>{const p=document.createElement('p');p.textContent='角色圖片載入失敗，請重新整理。';$('stage').append(p)}}
 document.addEventListener('visibilitychange',()=>{previous=0});
 
 if(MODE==='home'){runScene('home',0)}else{
 let timer=null, busy=false, pendingFinish=null, reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let plays=0,step=0,current='start',turns=0,stack=[],history=[];
-const durations={laugh:2500,hidden:0,peek:1200,startled:1000,shake:1500,reveal:4200,idle:0,melt:4000,eyeroll:4000,heart:4000,dance:9000,gift:3600,secret:7800,quiet:3400,potato:7000,ice:3500,repair:3600,squash:8500,point:1500,rent:1500};
+const durations={laugh:2500,hidden:0,peek:1200,startled:1000,shake:1500,reveal:4200,idle:0,melt:4000,eyeroll:4000,heart:4000,dance:9000,gift:3600,secret:7800,quiet:3400,potato:7000,ice:3500,repair:7000,squash:8500,point:7000,rent:1500};
 function setText(line,detail=''){ $('line').textContent=line;$('detail').textContent=detail }
 function cancel(){clearTimeout(timer);stopScene();busy=false;pendingFinish=null}
 function finish(){endScene();busy=false;document.querySelectorAll('#choices button').forEach(b=>b.disabled=false);const done=pendingFinish;pendingFinish=null;if(done)done()}
